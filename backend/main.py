@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 import models, schemas
 from database import engine, get_db
+from ai_agent import extract_complaint_fields
 
 # This creates all tables in Postgres if they don't exist yet
 models.Base.metadata.create_all(bind=engine)
@@ -43,3 +44,15 @@ def update_complaint(complaint_id: int, updates: schemas.ComplaintUpdate, db: Se
     db.commit()
     db.refresh(complaint)
     return complaint
+from pydantic import BaseModel
+
+class ChatMessageInput(BaseModel):
+    message: str
+
+@app.post("/copilot/log-complaint")
+def log_complaint(input: ChatMessageInput):
+    extracted_fields = extract_complaint_fields(input.message)
+    return {
+        "reply": "Complaint parsed successfully. I've extracted the product details and generated an initial risk assessment.",
+        "fields": extracted_fields,
+    }

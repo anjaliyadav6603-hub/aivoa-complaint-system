@@ -1,12 +1,11 @@
-import { useSelector } from 'react-redux'
+import ComplaintForm from './components/ComplaintForm'
+import CopilotChat from './components/CopilotChat'
 
 function App() {
-  const complaint = useSelector((state) => state.complaint)
-
   return (
-    <div style={{ padding: "20px" }}>
-      <h1>AIVOA Complaint System</h1>
-      <p>Status: {complaint.status}</p>
+    <div style={{ display: 'flex', height: '100vh' }}>
+      <ComplaintForm />
+      <CopilotChat />
     </div>
   )
 }
