@@ -1,19 +1,48 @@
 import { useSelector, useDispatch } from 'react-redux'
 import { setComplaintFields } from '../store/complaintSlice'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 function ComplaintForm() {
   const complaint = useSelector((state) => state.complaint)
   const dispatch = useDispatch()
   const [saving, setSaving] = useState(false)
+  const [completeness, setCompleteness] = useState(null)
 
-const handleCommit = async () => {
+  useEffect(() => {
+    if (!complaint.product_name) return
+
+    let isCurrent = true // flag to detect if a newer effect has started since this one
+
+    const checkCompleteness = async () => {
+      try {
+        const response = await fetch('http://127.0.0.1:8000/copilot/check-completeness', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ complaint }),
+        })
+        const data = await response.json()
+
+        if (isCurrent) {
+          setCompleteness(data)
+        }
+      } catch (err) {
+        // silent fail
+      }
+    }
+
+    checkCompleteness()
+
+    return () => {
+      isCurrent = false // this runs when complaint changes again, marking this effect's result as stale
+    }
+  }, [complaint])
+
+  const handleCommit = async () => {
     setSaving(true)
     try {
       const { id, created_at, ...rest } = complaint
       const payload = { ...rest, status: 'Committed' }
 
-      // Run duplicate check first (only for brand new complaints, not edits to already-saved ones)
       if (!id) {
         const dupResponse = await fetch('http://127.0.0.1:8000/copilot/check-duplicate', {
           method: 'POST',
@@ -107,6 +136,26 @@ const handleCommit = async () => {
         <FormField label="Suggested Next Action" value={complaint.suggested_next_action} />
       </div>
       <FormField label="Initial Risk Assessment" value={complaint.initial_risk_assessment} multiline />
+
+      {completeness && (
+        <div style={{
+          marginTop: '20px',
+          padding: '12px 16px',
+          borderRadius: '8px',
+          background: completeness.is_complete ? '#f0fdf4' : '#fef2f2',
+          border: `1px solid ${completeness.is_complete ? '#bbf7d0' : '#fecaca'}`,
+          fontSize: '13px',
+        }}>
+          {completeness.is_complete ? (
+            <span style={{ color: '#166534' }}>✓ Complaint record is complete.</span>
+          ) : (
+            <div style={{ color: '#991b1b' }}>
+              <strong>⚠ Missing fields:</strong> {completeness.missing_fields.join(', ')}
+              {completeness.notes && <div style={{ marginTop: '4px' }}>{completeness.notes}</div>}
+            </div>
+          )}
+        </div>
+      )}
 
       <button
         onClick={handleCommit}

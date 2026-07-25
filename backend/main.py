@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 import models, schemas
 from database import engine, get_db
-from ai_agent import run_complaint_agent, extract_complaint_fields, extract_text_from_pdf, check_duplicate
+from ai_agent import run_complaint_agent, extract_complaint_fields, extract_text_from_pdf, check_duplicate, check_completeness
 from fastapi import UploadFile, File
 from typing import Optional
 from fastapi.middleware.cors import CORSMiddleware
@@ -80,4 +80,11 @@ def check_duplicate_endpoint(input: DuplicateCheckInput, db: Session = Depends(g
     existing = db.query(models.Complaint).all()
     existing_dicts = [schemas.ComplaintResponse.model_validate(c).model_dump() for c in existing]
     result = check_duplicate(input.new_complaint, existing_dicts)
+    return result
+class CompletenessCheckInput(BaseModel):
+    complaint: dict
+
+@app.post("/copilot/check-completeness")
+def check_completeness_endpoint(input: CompletenessCheckInput):
+    result = check_completeness(input.complaint)
     return result

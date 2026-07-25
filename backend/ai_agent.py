@@ -206,3 +206,26 @@ def check_duplicate(new_complaint: dict, existing_complaints: list) -> dict:
         {"role": "user", "content": context},
     ])
     return json.loads(response.content)
+COMPLETENESS_CHECK_PROMPT = """You are an AI assistant for a pharmaceutical Quality Management System (QMS).
+Review the given complaint data and determine if it has enough information to be considered complete for regulatory purposes.
+
+ONLY consider these fields as mandatory: product_name, batch_lot_number, customer_name, complaint_source, complaint_description, manufacturing_date, expiry_date, affected_quantity.
+Ignore all other fields entirely — they must never appear in missing_fields.
+
+STRICT RULE: a field belongs in missing_fields ONLY if its value is null, an empty string, or the key is absent. If a field has ANY non-empty value, it is NOT missing, regardless of its format, wording, or units — do not second-guess formatting. Do not mention format concerns in notes either; notes should be empty unless there is a genuine gap in meaning, not style.
+
+Respond with ONLY valid JSON in this exact format:
+{
+  "is_complete": true or false,
+  "missing_fields": ["only", "fields", "that", "are", "null", "or", "empty"],
+  "notes": ""
+}
+"""
+def check_completeness(complaint: dict) -> dict:
+    context = f"COMPLAINT DATA:\n{json.dumps(complaint, indent=2)}"
+
+    response = extraction_llm.invoke([
+        {"role": "system", "content": COMPLETENESS_CHECK_PROMPT},
+        {"role": "user", "content": context},
+    ])
+    return json.loads(response.content)
