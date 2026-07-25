@@ -1,7 +1,44 @@
-import { useSelector } from 'react-redux'
+import { useSelector, useDispatch } from 'react-redux'
+import { setComplaintFields } from '../store/complaintSlice'
+import { useState } from 'react'
 
 function ComplaintForm() {
   const complaint = useSelector((state) => state.complaint)
+  const dispatch = useDispatch()
+  const [saving, setSaving] = useState(false)
+
+const handleCommit = async () => {
+    setSaving(true)
+    try {
+      // Strip out fields the backend doesn't expect (id, created_at) before sending
+      const { id, created_at, ...rest } = complaint
+      const payload = { ...rest, status: 'Committed' }  // set status BEFORE sending
+
+      let response
+      if (id) {
+        response = await fetch(`http://127.0.0.1:8000/complaints/${id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        })
+      } else {
+        response = await fetch('http://127.0.0.1:8000/complaints', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        })
+      }
+
+      if (!response.ok) throw new Error('Save failed')
+      const saved = await response.json()
+
+      dispatch(setComplaintFields(saved))  // sync Redux with exactly what the DB returned
+    } catch (err) {
+      alert('Failed to save complaint. Check that the backend is running.')
+    } finally {
+      setSaving(false)
+    }
+  }
 
   return (
     <div style={{ flex: 1, padding: '24px', overflowY: 'auto' }}>
@@ -51,6 +88,25 @@ function ComplaintForm() {
         <FormField label="Suggested Next Action" value={complaint.suggested_next_action} />
       </div>
       <FormField label="Initial Risk Assessment" value={complaint.initial_risk_assessment} multiline />
+
+      <button
+        onClick={handleCommit}
+        disabled={saving || !complaint.product_name}
+        style={{
+          marginTop: '24px',
+          marginBottom: '24px',
+          padding: '12px 24px',
+          background: complaint.product_name ? '#16a34a' : '#ccc',
+          color: '#fff',
+          border: 'none',
+          borderRadius: '8px',
+          cursor: complaint.product_name ? 'pointer' : 'not-allowed',
+          fontSize: '14px',
+          fontWeight: 600,
+        }}
+      >
+        {saving ? 'Saving...' : 'Commit to QMS Ledger'}
+      </button>
     </div>
   )
 }
