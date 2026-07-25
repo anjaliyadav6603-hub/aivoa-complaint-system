@@ -3,11 +3,9 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 import models, schemas
 from database import engine, get_db
-from ai_agent import extract_complaint_fields, edit_complaint_fields, extract_text_from_pdf
-from ai_agent import extract_complaint_fields
+from ai_agent import extract_complaint_fields, edit_complaint_fields, extract_text_from_pdf, check_duplicate
 from fastapi import UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
-from ai_agent import extract_complaint_fields, edit_complaint_fields
 # This creates all tables in Postgres if they don't exist yet
 models.Base.metadata.create_all(bind=engine)
 
@@ -86,3 +84,12 @@ async def upload_document(file: UploadFile = File(...)):
         "reply": f"PDF analysis complete. I've successfully extracted the complaint report and populated the form.",
         "fields": extracted_fields,
     }
+class DuplicateCheckInput(BaseModel):
+    new_complaint: dict
+
+@app.post("/copilot/check-duplicate")
+def check_duplicate_endpoint(input: DuplicateCheckInput, db: Session = Depends(get_db)):
+    existing = db.query(models.Complaint).all()
+    existing_dicts = [schemas.ComplaintResponse.model_validate(c).model_dump() for c in existing]
+    result = check_duplicate(input.new_complaint, existing_dicts)
+    return result

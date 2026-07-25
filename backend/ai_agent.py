@@ -70,3 +70,39 @@ def extract_text_from_pdf(file_bytes: bytes) -> str:
     for page in reader.pages:
         text += page.extract_text() + "\n"
     return text
+DUPLICATE_CHECK_PROMPT = """You are an AI assistant for a pharmaceutical Quality Management System (QMS).
+You will be given a NEW complaint and a list of EXISTING complaints. Determine if the new complaint is likely a duplicate of any existing one (same product, same or very similar batch number, same type of defect).
+
+Respond with ONLY valid JSON in this exact format:
+{
+  "is_duplicate": true or false,
+  "duplicate_of_id": integer or null,
+  "reason": "short explanation"
+}
+
+If there's no clear duplicate, return is_duplicate: false, duplicate_of_id: null.
+"""
+
+def check_duplicate(new_complaint: dict, existing_complaints: list) -> dict:
+    if not existing_complaints:
+        return {"is_duplicate": False, "duplicate_of_id": None, "reason": "No existing complaints to compare."}
+
+    # Keep the comparison list lightweight — only relevant fields
+    simplified_existing = [
+        {
+            "id": c.get("id"),
+            "product_name": c.get("product_name"),
+            "batch_lot_number": c.get("batch_lot_number"),
+            "complaint_category": c.get("complaint_category"),
+            "complaint_description": c.get("complaint_description"),
+        }
+        for c in existing_complaints
+    ]
+
+    context = f"NEW COMPLAINT:\n{json.dumps(new_complaint, indent=2)}\n\nEXISTING COMPLAINTS:\n{json.dumps(simplified_existing, indent=2)}"
+
+    response = extraction_llm.invoke([
+        {"role": "system", "content": DUPLICATE_CHECK_PROMPT},
+        {"role": "user", "content": context},
+    ])
+    return json.loads(response.content)
