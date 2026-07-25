@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { setComplaintFields } from '../store/complaintSlice'
 
@@ -10,8 +10,8 @@ function CopilotChat() {
   ])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
+  const fileInputRef = useRef(null)
 
-  // A complaint is considered "already started" if it has a product name set
   const hasExistingComplaint = Boolean(complaint.product_name)
 
   const handleSend = async () => {
@@ -26,14 +26,12 @@ function CopilotChat() {
       let response
 
       if (hasExistingComplaint) {
-        // EDIT mode — send current complaint + correction
         response = await fetch('http://127.0.0.1:8000/copilot/edit-complaint', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ message: userMessage, current_complaint: complaint }),
         })
       } else {
-        // NEW complaint mode — fresh extraction
         response = await fetch('http://127.0.0.1:8000/copilot/log-complaint', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -42,17 +40,43 @@ function CopilotChat() {
       }
 
       if (!response.ok) throw new Error('Backend error')
-
       const data = await response.json()
 
-      // Merge fields into the form — works for both modes since edit only returns changed fields
       dispatch(setComplaintFields({ ...data.fields, status: 'Ready to Commit' }))
-
       setMessages((prev) => [...prev, { role: 'assistant', text: data.reply }])
     } catch (err) {
       setMessages((prev) => [...prev, { role: 'assistant', text: 'Sorry, something went wrong connecting to the backend.' }])
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleFileSelect = async (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+
+    setMessages((prev) => [...prev, { role: 'user', text: `📄 ${file.name}` }])
+    setLoading(true)
+
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+
+      const response = await fetch('http://127.0.0.1:8000/copilot/upload-document', {
+        method: 'POST',
+        body: formData,
+      })
+
+      if (!response.ok) throw new Error('Upload failed')
+      const data = await response.json()
+
+      dispatch(setComplaintFields({ ...data.fields, status: 'Ready to Commit' }))
+      setMessages((prev) => [...prev, { role: 'assistant', text: data.reply }])
+    } catch (err) {
+      setMessages((prev) => [...prev, { role: 'assistant', text: 'Sorry, something went wrong processing that file.' }])
+    } finally {
+      setLoading(false)
+      e.target.value = null // reset so the same file can be re-selected later if needed
     }
   }
 
@@ -92,6 +116,21 @@ function CopilotChat() {
       </div>
 
       <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
+        <input
+          type="file"
+          accept=".pdf"
+          ref={fileInputRef}
+          onChange={handleFileSelect}
+          style={{ display: 'none' }}
+        />
+        <button
+          onClick={() => fileInputRef.current.click()}
+          disabled={loading}
+          title="Upload PDF"
+          style={{ padding: '10px 12px', background: '#f3f4f6', border: '1px solid #ddd', borderRadius: '8px', cursor: 'pointer' }}
+        >
+          📎
+        </button>
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
