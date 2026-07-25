@@ -3,7 +3,9 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 import models, schemas
 from database import engine, get_db
+from ai_agent import extract_complaint_fields, edit_complaint_fields, extract_text_from_pdf
 from ai_agent import extract_complaint_fields
+from fastapi import UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from ai_agent import extract_complaint_fields, edit_complaint_fields
 # This creates all tables in Postgres if they don't exist yet
@@ -74,4 +76,13 @@ def edit_complaint(input: EditMessageInput):
     return {
         "reply": f"Got it. I've updated the form based on your correction.",
         "fields": updated_fields,
+    }
+@app.post("/copilot/upload-document")
+async def upload_document(file: UploadFile = File(...)):
+    file_bytes = await file.read()
+    extracted_text = extract_text_from_pdf(file_bytes)
+    extracted_fields = extract_complaint_fields(extracted_text)
+    return {
+        "reply": f"PDF analysis complete. I've successfully extracted the complaint report and populated the form.",
+        "fields": extracted_fields,
     }
