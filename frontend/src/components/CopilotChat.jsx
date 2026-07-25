@@ -2,6 +2,8 @@ import { useState, useRef } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { setComplaintFields } from '../store/complaintSlice'
 
+const API_URL = import.meta.env.VITE_API_URL
+
 function CopilotChat() {
   const dispatch = useDispatch()
   const complaint = useSelector((state) => state.complaint)
@@ -15,34 +17,34 @@ function CopilotChat() {
   const hasExistingComplaint = Boolean(complaint.product_name)
 
   const handleSend = async () => {
-      if (!input.trim() || loading) return
-  
-      const userMessage = input
-      setMessages((prev) => [...prev, { role: 'user', text: userMessage }])
-      setInput('')
-      setLoading(true)
-  
-      try {
-        const response = await fetch('http://127.0.0.1:8000/copilot/message', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            message: userMessage,
-            current_complaint: hasExistingComplaint ? complaint : null,
-          }),
-        })
-  
-        if (!response.ok) throw new Error('Backend error')
-        const data = await response.json()
-  
-        dispatch(setComplaintFields({ ...data.fields, status: 'Ready to Commit' }))
-        setMessages((prev) => [...prev, { role: 'assistant', text: data.reply }])
-      } catch (err) {
-        setMessages((prev) => [...prev, { role: 'assistant', text: 'Sorry, something went wrong connecting to the backend.' }])
-      } finally {
-        setLoading(false)
-      }
+    if (!input.trim() || loading) return
+
+    const userMessage = input
+    setMessages((prev) => [...prev, { role: 'user', text: userMessage }])
+    setInput('')
+    setLoading(true)
+
+    try {
+      const response = await fetch(`${API_URL}/copilot/message`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: userMessage,
+          current_complaint: hasExistingComplaint ? complaint : null,
+        }),
+      })
+
+      if (!response.ok) throw new Error('Backend error')
+      const data = await response.json()
+
+      dispatch(setComplaintFields({ ...data.fields, status: 'Ready to Commit' }))
+      setMessages((prev) => [...prev, { role: 'assistant', text: data.reply }])
+    } catch (err) {
+      setMessages((prev) => [...prev, { role: 'assistant', text: 'Sorry, something went wrong connecting to the backend.' }])
+    } finally {
+      setLoading(false)
     }
+  }
 
   const handleFileSelect = async (e) => {
     const file = e.target.files[0]
@@ -55,7 +57,7 @@ function CopilotChat() {
       const formData = new FormData()
       formData.append('file', file)
 
-      const response = await fetch('http://127.0.0.1:8000/copilot/upload-document', {
+      const response = await fetch(`${API_URL}/copilot/upload-document`, {
         method: 'POST',
         body: formData,
       })
@@ -69,7 +71,7 @@ function CopilotChat() {
       setMessages((prev) => [...prev, { role: 'assistant', text: 'Sorry, something went wrong processing that file.' }])
     } finally {
       setLoading(false)
-      e.target.value = null // reset so the same file can be re-selected later if needed
+      e.target.value = null
     }
   }
 

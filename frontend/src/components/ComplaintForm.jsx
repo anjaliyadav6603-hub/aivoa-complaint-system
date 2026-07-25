@@ -2,6 +2,8 @@ import { useSelector, useDispatch } from 'react-redux'
 import { setComplaintFields } from '../store/complaintSlice'
 import { useEffect, useState } from 'react'
 
+const API_URL = import.meta.env.VITE_API_URL
+
 function ComplaintForm() {
   const complaint = useSelector((state) => state.complaint)
   const dispatch = useDispatch()
@@ -11,11 +13,11 @@ function ComplaintForm() {
   useEffect(() => {
     if (!complaint.product_name) return
 
-    let isCurrent = true // flag to detect if a newer effect has started since this one
+    let isCurrent = true
 
     const checkCompleteness = async () => {
       try {
-        const response = await fetch('http://127.0.0.1:8000/copilot/check-completeness', {
+        const response = await fetch(`${API_URL}/copilot/check-completeness`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ complaint }),
@@ -33,7 +35,7 @@ function ComplaintForm() {
     checkCompleteness()
 
     return () => {
-      isCurrent = false // this runs when complaint changes again, marking this effect's result as stale
+      isCurrent = false
     }
   }, [complaint])
 
@@ -44,7 +46,7 @@ function ComplaintForm() {
       const payload = { ...rest, status: 'Committed' }
 
       if (!id) {
-        const dupResponse = await fetch('http://127.0.0.1:8000/copilot/check-duplicate', {
+        const dupResponse = await fetch(`${API_URL}/copilot/check-duplicate`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ new_complaint: payload }),
@@ -64,13 +66,13 @@ function ComplaintForm() {
 
       let response
       if (id) {
-        response = await fetch(`http://127.0.0.1:8000/complaints/${id}`, {
+        response = await fetch(`${API_URL}/complaints/${id}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
         })
       } else {
-        response = await fetch('http://127.0.0.1:8000/complaints', {
+        response = await fetch(`${API_URL}/complaints`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
