@@ -20,6 +20,23 @@ This app lets a QA user log, edit, and manage pharmaceutical customer complaints
 3. **Document Extraction** — upload a PDF complaint report; AI extracts text and populates the form the same way as the Log Complaint tool.
 4. **Duplicate Complaint Detection** (bonus) — before committing a new complaint, the AI compares it against existing records and warns the user if a likely duplicate is found.
 
+## LangGraph Architecture
+
+The AI logic is implemented as a single LangGraph `StateGraph` (see `backend/ai_agent.py`) with the following flow:
+
+START → router → (conditional) → extract_node → format_reply → END
+└→ edit_node ↗
+
+
+- **router**: inspects the shared state to determine whether this is a brand-new complaint or a correction to one already in progress (based on whether `current_complaint` has a `product_name` set), and sets the routing mode accordingly.
+- **extract_node**: runs when starting a new complaint — sends the user's raw text to Groq (`llama-3.1-8b-instant`) with an extraction prompt, returning all structured complaint fields plus an AI-reasoned risk assessment.
+- **edit_node**: runs when correcting an existing complaint — sends both the current complaint state and the correction message to Groq, returning only the fields that changed.
+- **format_reply**: a shared final node that generates the natural-language confirmation message shown in the chat, regardless of which path was taken.
+
+Document uploads (PDFs) reuse the same extraction logic via a dedicated `extract_complaint_fields()` function, since an uploaded document is always treated as a fresh complaint.
+
+Duplicate detection is a separate, simpler LLM call (`check_duplicate()`) triggered client-side before committing a new complaint — it wasn't folded into the main graph since it's a pre-commit check rather than part of the conversational flow.
+
 ## Model Note
 
 The assignment specifies `gemma2-9b-it`. This model was decommissioned by Groq shortly before this assessment was completed, in favor of `llama-3.1-8b-instant` (Groq's official recommended replacement — same speed tier, comparable price-performance). All lightweight extraction/edit/duplicate-check tasks use `llama-3.1-8b-instant`; `llama-3.3-70b-versatile` is available for heavier reasoning tasks per the assignment's suggestion.
