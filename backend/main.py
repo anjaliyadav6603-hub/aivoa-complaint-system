@@ -4,11 +4,19 @@ from sqlalchemy import text
 import models, schemas
 from database import engine, get_db
 from ai_agent import extract_complaint_fields
-
+from fastapi.middleware.cors import CORSMiddleware
+from ai_agent import extract_complaint_fields, edit_complaint_fields
 # This creates all tables in Postgres if they don't exist yet
 models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 @app.get("/")
 def health_check():
@@ -55,4 +63,15 @@ def log_complaint(input: ChatMessageInput):
     return {
         "reply": "Complaint parsed successfully. I've extracted the product details and generated an initial risk assessment.",
         "fields": extracted_fields,
+    }
+class EditMessageInput(BaseModel):
+    message: str
+    current_complaint: dict
+
+@app.post("/copilot/edit-complaint")
+def edit_complaint(input: EditMessageInput):
+    updated_fields = edit_complaint_fields(input.current_complaint, input.message)
+    return {
+        "reply": f"Got it. I've updated the form based on your correction.",
+        "fields": updated_fields,
     }

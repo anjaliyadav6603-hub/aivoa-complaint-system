@@ -44,3 +44,21 @@ def extract_complaint_fields(user_message: str) -> dict:
         {"role": "user", "content": user_message},
     ])
     return json.loads(response.content)
+EDIT_SYSTEM_PROMPT = """You are an AI assistant for a pharmaceutical Quality Management System (QMS).
+The user is correcting or updating a complaint that has already been logged. You will be given the CURRENT complaint data and a correction message.
+
+Respond with ONLY valid JSON containing ONLY the fields that need to change based on the correction message. Do NOT include fields that weren't mentioned in the correction. Do NOT include unchanged fields.
+
+Possible keys you may include (only if mentioned): complaint_source, customer_name, product_name, product_strength, batch_lot_number, affected_quantity, manufacturing_date, expiry_date, originating_site_block, impacted_npm, complaint_category, complaint_description, severity, suggested_next_action, initial_risk_assessment
+
+If the correction changes something that would affect risk assessment (e.g. quantity, product, defect type), you may also update severity, suggested_next_action, or initial_risk_assessment using your reasoning.
+"""
+
+def edit_complaint_fields(current_complaint: dict, correction_message: str) -> dict:
+    context = f"CURRENT COMPLAINT DATA:\n{json.dumps(current_complaint, indent=2)}\n\nCORRECTION MESSAGE:\n{correction_message}"
+
+    response = extraction_llm.invoke([
+        {"role": "system", "content": EDIT_SYSTEM_PROMPT},
+        {"role": "user", "content": context},
+    ])
+    return json.loads(response.content)
