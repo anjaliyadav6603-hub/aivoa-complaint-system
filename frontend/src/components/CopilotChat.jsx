@@ -15,41 +15,34 @@ function CopilotChat() {
   const hasExistingComplaint = Boolean(complaint.product_name)
 
   const handleSend = async () => {
-    if (!input.trim() || loading) return
-
-    const userMessage = input
-    setMessages((prev) => [...prev, { role: 'user', text: userMessage }])
-    setInput('')
-    setLoading(true)
-
-    try {
-      let response
-
-      if (hasExistingComplaint) {
-        response = await fetch('http://127.0.0.1:8000/copilot/edit-complaint', {
+      if (!input.trim() || loading) return
+  
+      const userMessage = input
+      setMessages((prev) => [...prev, { role: 'user', text: userMessage }])
+      setInput('')
+      setLoading(true)
+  
+      try {
+        const response = await fetch('http://127.0.0.1:8000/copilot/message', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message: userMessage, current_complaint: complaint }),
+          body: JSON.stringify({
+            message: userMessage,
+            current_complaint: hasExistingComplaint ? complaint : null,
+          }),
         })
-      } else {
-        response = await fetch('http://127.0.0.1:8000/copilot/log-complaint', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message: userMessage }),
-        })
+  
+        if (!response.ok) throw new Error('Backend error')
+        const data = await response.json()
+  
+        dispatch(setComplaintFields({ ...data.fields, status: 'Ready to Commit' }))
+        setMessages((prev) => [...prev, { role: 'assistant', text: data.reply }])
+      } catch (err) {
+        setMessages((prev) => [...prev, { role: 'assistant', text: 'Sorry, something went wrong connecting to the backend.' }])
+      } finally {
+        setLoading(false)
       }
-
-      if (!response.ok) throw new Error('Backend error')
-      const data = await response.json()
-
-      dispatch(setComplaintFields({ ...data.fields, status: 'Ready to Commit' }))
-      setMessages((prev) => [...prev, { role: 'assistant', text: data.reply }])
-    } catch (err) {
-      setMessages((prev) => [...prev, { role: 'assistant', text: 'Sorry, something went wrong connecting to the backend.' }])
-    } finally {
-      setLoading(false)
     }
-  }
 
   const handleFileSelect = async (e) => {
     const file = e.target.files[0]

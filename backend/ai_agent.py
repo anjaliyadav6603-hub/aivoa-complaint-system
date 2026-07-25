@@ -1,9 +1,11 @@
 import os
 import json
+import io
 from dotenv import load_dotenv
 from langchain_groq import ChatGroq
 from pypdf import PdfReader
-import io
+from typing import TypedDict, Optional
+from langgraph.graph import StateGraph, END
 
 load_dotenv()
 
@@ -12,7 +14,19 @@ extraction_llm = ChatGroq(
     model="llama-3.1-8b-instant",
 )
 
-SYSTEM_PROMPT = """You are an AI assistant for a pharmaceutical Quality Management System (QMS).
+# ---------- Shared state definition ----------
+
+class ComplaintAgentState(TypedDict):
+    mode: str                      # "extract" or "edit"
+    user_message: str
+    current_complaint: Optional[dict]
+    result_fields: dict
+    reply: str
+
+
+# ---------- Prompts ----------
+
+EXTRACT_PROMPT = """You are an AI assistant for a pharmaceutical Quality Management System (QMS).
 Extract structured complaint data from the user's message. Respond with ONLY valid JSON, no other text, no markdown code fences.
 
 Return a JSON object with these exact keys (use null for any field not mentioned):
@@ -40,13 +54,7 @@ Guidance:
 - Use your own reasoning as a QMS expert to assess severity, suggested_next_action, and initial_risk_assessment based on the complaint details, even if not explicitly stated by the user.
 """
 
-def extract_complaint_fields(user_message: str) -> dict:
-    response = extraction_llm.invoke([
-        {"role": "system", "content": SYSTEM_PROMPT},
-        {"role": "user", "content": user_message},
-    ])
-    return json.loads(response.content)
-EDIT_SYSTEM_PROMPT = """You are an AI assistant for a pharmaceutical Quality Management System (QMS).
+EDIT_PROMPT = """You are an AI assistant for a pharmaceutical Quality Management System (QMS).
 The user is correcting or updating a complaint that has already been logged. You will be given the CURRENT complaint data and a correction message.
 
 Respond with ONLY valid JSON containing ONLY the fields that need to change based on the correction message. Do NOT include fields that weren't mentioned in the correction. Do NOT include unchanged fields.
@@ -56,20 +64,6 @@ Possible keys you may include (only if mentioned): complaint_source, customer_na
 If the correction changes something that would affect risk assessment (e.g. quantity, product, defect type), you may also update severity, suggested_next_action, or initial_risk_assessment using your reasoning.
 """
 
-def edit_complaint_fields(current_complaint: dict, correction_message: str) -> dict:
-    context = f"CURRENT COMPLAINT DATA:\n{json.dumps(current_complaint, indent=2)}\n\nCORRECTION MESSAGE:\n{correction_message}"
-
-    response = extraction_llm.invoke([
-        {"role": "system", "content": EDIT_SYSTEM_PROMPT},
-        {"role": "user", "content": context},
-    ])
-    return json.loads(response.content)
-def extract_text_from_pdf(file_bytes: bytes) -> str:
-    reader = PdfReader(io.BytesIO(file_bytes))
-    text = ""
-    for page in reader.pages:
-        text += page.extract_text() + "\n"
-    return text
 DUPLICATE_CHECK_PROMPT = """You are an AI assistant for a pharmaceutical Quality Management System (QMS).
 You will be given a NEW complaint and a list of EXISTING complaints. Determine if the new complaint is likely a duplicate of any existing one (same product, same or very similar batch number, same type of defect).
 
@@ -83,11 +77,117 @@ Respond with ONLY valid JSON in this exact format:
 If there's no clear duplicate, return is_duplicate: false, duplicate_of_id: null.
 """
 
+
+# ---------- Graph nodes ----------
+
+def router_node(state: ComplaintAgentState) -> ComplaintAgentState:
+    # Decides which path to take next. LangGraph conditional edges read this key.
+    if state["current_complaint"] and state["current_complaint"].get("product_name"):
+        state["mode"] = "edit"
+    else:
+        state["mode"] = "extract"
+    return state
+
+
+def extract_node(state: ComplaintAgentState) -> ComplaintAgentState:
+    response = extraction_llm.invoke([
+        {"role": "system", "content": EXTRACT_PROMPT},
+        {"role": "user", "content": state["user_message"]},
+    ])
+    state["result_fields"] = json.loads(response.content)
+    return state
+
+
+def edit_node(state: ComplaintAgentState) -> ComplaintAgentState:
+    context = (
+        f"CURRENT COMPLAINT DATA:\n{json.dumps(state['current_complaint'], indent=2)}\n\n"
+        f"CORRECTION MESSAGE:\n{state['user_message']}"
+    )
+    response = extraction_llm.invoke([
+        {"role": "system", "content": EDIT_PROMPT},
+        {"role": "user", "content": context},
+    ])
+    state["result_fields"] = json.loads(response.content)
+    return state
+
+
+def format_reply_node(state: ComplaintAgentState) -> ComplaintAgentState:
+    if state["mode"] == "extract":
+        state["reply"] = "Complaint parsed successfully. I've extracted the product details and generated an initial risk assessment."
+    else:
+        state["reply"] = "Got it. I've updated the form based on your correction."
+    return state
+
+
+def route_decision(state: ComplaintAgentState) -> str:
+    return state["mode"]
+
+
+# ---------- Build the graph ----------
+
+graph_builder = StateGraph(ComplaintAgentState)
+
+graph_builder.add_node("router", router_node)
+graph_builder.add_node("extract_node", extract_node)
+graph_builder.add_node("edit_node", edit_node)
+graph_builder.add_node("format_reply", format_reply_node)
+
+graph_builder.set_entry_point("router")
+
+graph_builder.add_conditional_edges(
+    "router",
+    route_decision,
+    {
+        "extract": "extract_node",
+        "edit": "edit_node",
+    },
+)
+
+graph_builder.add_edge("extract_node", "format_reply")
+graph_builder.add_edge("edit_node", "format_reply")
+graph_builder.add_edge("format_reply", END)
+
+complaint_agent_graph = graph_builder.compile()
+
+
+# ---------- Public functions used by main.py ----------
+
+def extract_complaint_fields(user_message: str) -> dict:
+    """Used directly for document extraction (PDF text), which always treats content as a fresh complaint."""
+    result = complaint_agent_graph.invoke({
+        "mode": "extract",
+        "user_message": user_message,
+        "current_complaint": None,
+        "result_fields": {},
+        "reply": "",
+    })
+    return result["result_fields"]
+
+
+def run_complaint_agent(user_message: str, current_complaint: Optional[dict]) -> dict:
+    """Main entry point — lets the graph's router decide extract vs edit."""
+    result = complaint_agent_graph.invoke({
+        "mode": "",
+        "user_message": user_message,
+        "current_complaint": current_complaint,
+        "result_fields": {},
+        "reply": "",
+    })
+    return {"reply": result["reply"], "fields": result["result_fields"]}
+
+
+def extract_text_from_pdf(file_bytes: bytes) -> str:
+    reader = PdfReader(io.BytesIO(file_bytes))
+    text = ""
+    for page in reader.pages:
+        text += page.extract_text() + "\n"
+    return text
+
+
 def check_duplicate(new_complaint: dict, existing_complaints: list) -> dict:
     if not existing_complaints:
         return {"is_duplicate": False, "duplicate_of_id": None, "reason": "No existing complaints to compare."}
 
-    # Keep the comparison list lightweight — only relevant fields
     simplified_existing = [
         {
             "id": c.get("id"),

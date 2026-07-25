@@ -3,8 +3,9 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 import models, schemas
 from database import engine, get_db
-from ai_agent import extract_complaint_fields, edit_complaint_fields, extract_text_from_pdf, check_duplicate
+from ai_agent import run_complaint_agent, extract_complaint_fields, extract_text_from_pdf, check_duplicate
 from fastapi import UploadFile, File
+from typing import Optional
 from fastapi.middleware.cors import CORSMiddleware
 # This creates all tables in Postgres if they don't exist yet
 models.Base.metadata.create_all(bind=engine)
@@ -54,27 +55,14 @@ def update_complaint(complaint_id: int, updates: schemas.ComplaintUpdate, db: Se
     return complaint
 from pydantic import BaseModel
 
-class ChatMessageInput(BaseModel):
+class CopilotMessageInput(BaseModel):
     message: str
+    current_complaint: Optional[dict] = None
 
-@app.post("/copilot/log-complaint")
-def log_complaint(input: ChatMessageInput):
-    extracted_fields = extract_complaint_fields(input.message)
-    return {
-        "reply": "Complaint parsed successfully. I've extracted the product details and generated an initial risk assessment.",
-        "fields": extracted_fields,
-    }
-class EditMessageInput(BaseModel):
-    message: str
-    current_complaint: dict
-
-@app.post("/copilot/edit-complaint")
-def edit_complaint(input: EditMessageInput):
-    updated_fields = edit_complaint_fields(input.current_complaint, input.message)
-    return {
-        "reply": f"Got it. I've updated the form based on your correction.",
-        "fields": updated_fields,
-    }
+@app.post("/copilot/message")
+def copilot_message(input: CopilotMessageInput):
+    result = run_complaint_agent(input.message, input.current_complaint)
+    return result
 @app.post("/copilot/upload-document")
 async def upload_document(file: UploadFile = File(...)):
     file_bytes = await file.read()
