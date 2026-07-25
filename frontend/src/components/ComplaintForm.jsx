@@ -10,9 +10,28 @@ function ComplaintForm() {
 const handleCommit = async () => {
     setSaving(true)
     try {
-      // Strip out fields the backend doesn't expect (id, created_at) before sending
       const { id, created_at, ...rest } = complaint
-      const payload = { ...rest, status: 'Committed' }  // set status BEFORE sending
+      const payload = { ...rest, status: 'Committed' }
+
+      // Run duplicate check first (only for brand new complaints, not edits to already-saved ones)
+      if (!id) {
+        const dupResponse = await fetch('http://127.0.0.1:8000/copilot/check-duplicate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ new_complaint: payload }),
+        })
+        const dupResult = await dupResponse.json()
+
+        if (dupResult.is_duplicate) {
+          const proceed = confirm(
+            `⚠️ Possible duplicate detected!\n\n${dupResult.reason}\n\nThis looks similar to complaint #${dupResult.duplicate_of_id}. Do you want to save it anyway?`
+          )
+          if (!proceed) {
+            setSaving(false)
+            return
+          }
+        }
+      }
 
       let response
       if (id) {
@@ -32,7 +51,7 @@ const handleCommit = async () => {
       if (!response.ok) throw new Error('Save failed')
       const saved = await response.json()
 
-      dispatch(setComplaintFields(saved))  // sync Redux with exactly what the DB returned
+      dispatch(setComplaintFields(saved))
     } catch (err) {
       alert('Failed to save complaint. Check that the backend is running.')
     } finally {
