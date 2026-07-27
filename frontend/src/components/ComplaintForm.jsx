@@ -1,6 +1,7 @@
 import { useSelector, useDispatch } from 'react-redux'
 import { setComplaintFields } from '../store/complaintSlice'
 import { useEffect, useState } from 'react'
+import './ComplaintForm.css'
 
 const API_URL = import.meta.env.VITE_API_URL
 
@@ -12,7 +13,6 @@ function ComplaintForm() {
 
   useEffect(() => {
     if (!complaint.product_name) return
-
     let isCurrent = true
 
     const checkCompleteness = async () => {
@@ -23,20 +23,14 @@ function ComplaintForm() {
           body: JSON.stringify({ complaint }),
         })
         const data = await response.json()
-
-        if (isCurrent) {
-          setCompleteness(data)
-        }
+        if (isCurrent) setCompleteness(data)
       } catch (err) {
         // silent fail
       }
     }
 
     checkCompleteness()
-
-    return () => {
-      isCurrent = false
-    }
+    return () => { isCurrent = false }
   }, [complaint])
 
   const handleCommit = async () => {
@@ -81,7 +75,6 @@ function ComplaintForm() {
 
       if (!response.ok) throw new Error('Save failed')
       const saved = await response.json()
-
       dispatch(setComplaintFields(saved))
     } catch (err) {
       alert('Failed to save complaint. Check that the backend is running.')
@@ -90,116 +83,95 @@ function ComplaintForm() {
     }
   }
 
+  const isCommitted = complaint.status === 'Committed'
+
   return (
-    <div style={{ flex: 1, padding: '24px', overflowY: 'auto' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+    <div className="complaint-form">
+      <div className="complaint-form__header">
         <div>
-          <h2 style={{ margin: 0 }}>Log Customer Complaint</h2>
-          <p style={{ margin: 0, color: '#666', fontSize: '14px' }}>API & FDF Quality Assurance Module</p>
+          <h2 className="complaint-form__title">Log Customer Complaint</h2>
+          <p className="complaint-form__subtitle">API & FDF Quality Assurance Module</p>
         </div>
-        <span style={{ background: '#fef3c7', color: '#92400e', padding: '4px 12px', borderRadius: '12px', fontSize: '12px' }}>
+        <span className={`complaint-form__status ${isCommitted ? 'complaint-form__status--committed' : ''}`}>
           {complaint.status}
         </span>
       </div>
 
-      <h4 style={{ marginTop: '24px', color: '#999', fontSize: '12px', letterSpacing: '1px' }}>1. ORIGIN & CUSTOMER DETAILS</h4>
-      <div style={{ display: 'flex', gap: '16px' }}>
-        <FormField label="Complaint Source" value={complaint.complaint_source} />
-        <FormField label="Customer Name" value={complaint.customer_name} />
+      <div className="section">
+        <h4 className="section__eyebrow">1. Origin & Customer Details</h4>
+        <div className="field-row">
+          <Field label="Complaint Source" value={complaint.complaint_source} />
+          <Field label="Customer Name" value={complaint.customer_name} />
+        </div>
       </div>
 
-      <h4 style={{ marginTop: '24px', color: '#999', fontSize: '12px', letterSpacing: '1px' }}>2. PRODUCT & BATCH IDENTIFICATION</h4>
-      <div style={{ display: 'flex', gap: '16px' }}>
-        <FormField label="Product Name" value={complaint.product_name} />
-        <FormField label="Product Strength/Grade" value={complaint.product_strength} />
-      </div>
-      <div style={{ display: 'flex', gap: '16px' }}>
-        <FormField label="Batch/Lot Number" value={complaint.batch_lot_number} />
-        <FormField label="Affected Quantity" value={complaint.affected_quantity} />
-      </div>
-      <div style={{ display: 'flex', gap: '16px' }}>
-        <FormField label="Manufacturing Date" value={complaint.manufacturing_date} />
-        <FormField label="Expiry Date" value={complaint.expiry_date} />
-      </div>
-
-      <h4 style={{ marginTop: '24px', color: '#999', fontSize: '12px', letterSpacing: '1px' }}>3. FACILITY & MATERIAL IMPACT</h4>
-      <div style={{ display: 'flex', gap: '16px' }}>
-        <FormField label="Originating Site Block" value={complaint.originating_site_block} />
-        <FormField label="Impacted Non-Product Materials (NPM)" value={complaint.impacted_npm} />
+      <div className="section">
+        <h4 className="section__eyebrow">2. Product & Batch Identification</h4>
+        <div className="field-row">
+          <Field label="Product Name" value={complaint.product_name} />
+          <Field label="Product Strength/Grade" value={complaint.product_strength} />
+        </div>
+        <div className="field-row">
+          <Field label="Batch/Lot Number" value={complaint.batch_lot_number} />
+          <Field label="Affected Quantity" value={complaint.affected_quantity} />
+        </div>
+        <div className="field-row">
+          <Field label="Manufacturing Date" value={complaint.manufacturing_date} />
+          <Field label="Expiry Date" value={complaint.expiry_date} />
+        </div>
       </div>
 
-      <h4 style={{ marginTop: '24px', color: '#999', fontSize: '12px', letterSpacing: '1px' }}>4. DEFECT ANALYSIS</h4>
-      <FormField label="Complaint Category" value={complaint.complaint_category} />
-      <FormField label="Complaint Description" value={complaint.complaint_description} multiline />
-
-      <h4 style={{ marginTop: '24px', color: '#6366f1', fontSize: '12px', letterSpacing: '1px' }}>AI COPILOT RISK ASSESSMENT</h4>
-      <div style={{ display: 'flex', gap: '16px' }}>
-        <FormField label="Severity (Suggested)" value={complaint.severity} />
-        <FormField label="Suggested Next Action" value={complaint.suggested_next_action} />
+      <div className="section">
+        <h4 className="section__eyebrow">3. Facility & Material Impact</h4>
+        <div className="field-row">
+          <Field label="Originating Site Block" value={complaint.originating_site_block} />
+          <Field label="Impacted Non-Product Materials (NPM)" value={complaint.impacted_npm} />
+        </div>
       </div>
-      <FormField label="Initial Risk Assessment" value={complaint.initial_risk_assessment} multiline />
+
+      <div className="section">
+        <h4 className="section__eyebrow">4. Defect Analysis</h4>
+        <Field label="Complaint Category" value={complaint.complaint_category} />
+        <Field label="Complaint Description" value={complaint.complaint_description} multiline />
+      </div>
+
+      <div className="section section--ai">
+        <h4 className="section__eyebrow">AI Copilot Risk Assessment</h4>
+        <div className="field-row">
+          <Field label="Severity (Suggested)" value={complaint.severity} />
+          <Field label="Suggested Next Action" value={complaint.suggested_next_action} />
+        </div>
+        <Field label="Initial Risk Assessment" value={complaint.initial_risk_assessment} multiline />
+      </div>
 
       {completeness && (
-        <div style={{
-          marginTop: '20px',
-          padding: '12px 16px',
-          borderRadius: '8px',
-          background: completeness.is_complete ? '#f0fdf4' : '#fef2f2',
-          border: `1px solid ${completeness.is_complete ? '#bbf7d0' : '#fecaca'}`,
-          fontSize: '13px',
-        }}>
+        <div className={`completeness-box ${completeness.is_complete ? 'completeness-box--ok' : 'completeness-box--warn'}`}>
           {completeness.is_complete ? (
-            <span style={{ color: '#166534' }}>✓ Complaint record is complete.</span>
+            <span>✓ Complaint record is complete.</span>
           ) : (
-            <div style={{ color: '#991b1b' }}>
+            <div>
               <strong>⚠ Missing fields:</strong> {completeness.missing_fields.join(', ')}
-              {completeness.notes && <div style={{ marginTop: '4px' }}>{completeness.notes}</div>}
+              {completeness.notes && <div className="completeness-box__note">{completeness.notes}</div>}
             </div>
           )}
         </div>
       )}
 
-      <button
-        onClick={handleCommit}
-        disabled={saving || !complaint.product_name}
-        style={{
-          marginTop: '24px',
-          marginBottom: '24px',
-          padding: '12px 24px',
-          background: complaint.product_name ? '#16a34a' : '#ccc',
-          color: '#fff',
-          border: 'none',
-          borderRadius: '8px',
-          cursor: complaint.product_name ? 'pointer' : 'not-allowed',
-          fontSize: '14px',
-          fontWeight: 600,
-        }}
-      >
+      <button className="commit-btn" onClick={handleCommit} disabled={saving || !complaint.product_name}>
         {saving ? 'Saving...' : 'Commit to QMS Ledger'}
       </button>
     </div>
   )
 }
 
-function FormField({ label, value, multiline }) {
+function Field({ label, value, multiline }) {
   return (
-    <div style={{ flex: 1, marginTop: '12px' }}>
-      <label style={{ display: 'block', fontSize: '13px', marginBottom: '4px', fontWeight: 500 }}>{label}</label>
+    <div className="field">
+      <label className="field__label">{label}</label>
       {multiline ? (
-        <textarea
-          readOnly
-          value={value || ''}
-          placeholder="Awaiting AI extraction..."
-          rows={3}
-          style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '6px', fontFamily: 'inherit', resize: 'vertical' }}
-        />
+        <textarea className="field__textarea" readOnly value={value || ''} placeholder="Awaiting AI extraction..." rows={3} />
       ) : (
-        <input
-          readOnly
-          value={value || ''}
-          placeholder="Awaiting AI extraction..."
-          style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '6px', fontFamily: 'inherit' }}
-        />
+        <input className="field__input" readOnly value={value || ''} placeholder="Awaiting AI extraction..." />
       )}
     </div>
   )

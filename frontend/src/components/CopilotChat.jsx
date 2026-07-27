@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { setComplaintFields } from '../store/complaintSlice'
+import './CopilotChat.css'
 
 const API_URL = import.meta.env.VITE_API_URL
 
@@ -18,7 +19,6 @@ function CopilotChat() {
 
   const handleSend = async () => {
     if (!input.trim() || loading) return
-
     const userMessage = input
     setMessages((prev) => [...prev, { role: 'user', text: userMessage }])
     setInput('')
@@ -33,10 +33,8 @@ function CopilotChat() {
           current_complaint: hasExistingComplaint ? complaint : null,
         }),
       })
-
       if (!response.ok) throw new Error('Backend error')
       const data = await response.json()
-
       dispatch(setComplaintFields({ ...data.fields, status: 'Ready to Commit' }))
       setMessages((prev) => [...prev, { role: 'assistant', text: data.reply }])
     } catch (err) {
@@ -49,22 +47,18 @@ function CopilotChat() {
   const handleFileSelect = async (e) => {
     const file = e.target.files[0]
     if (!file) return
-
     setMessages((prev) => [...prev, { role: 'user', text: `📄 ${file.name}` }])
     setLoading(true)
 
     try {
       const formData = new FormData()
       formData.append('file', file)
-
       const response = await fetch(`${API_URL}/copilot/upload-document`, {
         method: 'POST',
         body: formData,
       })
-
       if (!response.ok) throw new Error('Upload failed')
       const data = await response.json()
-
       dispatch(setComplaintFields({ ...data.fields, status: 'Ready to Commit' }))
       setMessages((prev) => [...prev, { role: 'assistant', text: data.reply }])
     } catch (err) {
@@ -76,69 +70,37 @@ function CopilotChat() {
   }
 
   const handleKeyDown = (e) => {
-    if (e.key === 'Enter') {
-      handleSend()
-    }
+    if (e.key === 'Enter') handleSend()
   }
 
   return (
-    <div style={{ width: '380px', borderLeft: '1px solid #eee', padding: '24px', display: 'flex', flexDirection: 'column', height: '100vh', boxSizing: 'border-box' }}>
-      <h3 style={{ margin: 0 }}>AIVOA Copilot</h3>
-      <p style={{ color: '#666', fontSize: '13px' }}>Drop complaint files or paste text below.</p>
+    <div className="copilot-chat">
+      <h3 className="copilot-chat__title">AIVOA Copilot</h3>
+      <p className="copilot-chat__subtitle">Drop complaint files or paste text below.</p>
 
-      <div style={{ flex: 1, marginTop: '16px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+      <div className="copilot-chat__messages">
         {messages.map((msg, i) => (
-          <div
-            key={i}
-            style={{
-              alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start',
-              background: msg.role === 'user' ? '#6366f1' : '#f3f4f6',
-              color: msg.role === 'user' ? '#fff' : '#111',
-              padding: '10px 14px',
-              borderRadius: '12px',
-              maxWidth: '85%',
-              fontSize: '14px',
-            }}
-          >
+          <div key={i} className={`bubble ${msg.role === 'user' ? 'bubble--user' : 'bubble--assistant'}`}>
             {msg.text}
           </div>
         ))}
-        {loading && (
-          <div style={{ alignSelf: 'flex-start', color: '#999', fontSize: '13px' }}>
-            AI is thinking...
-          </div>
-        )}
+        {loading && <div className="thinking-indicator">AI is thinking...</div>}
       </div>
 
-      <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
-        <input
-          type="file"
-          accept=".pdf"
-          ref={fileInputRef}
-          onChange={handleFileSelect}
-          style={{ display: 'none' }}
-        />
-        <button
-          onClick={() => fileInputRef.current.click()}
-          disabled={loading}
-          title="Upload PDF"
-          style={{ padding: '10px 12px', background: '#f3f4f6', border: '1px solid #ddd', borderRadius: '8px', cursor: 'pointer' }}
-        >
+      <div className="copilot-chat__input-row">
+        <input type="file" accept=".pdf" ref={fileInputRef} onChange={handleFileSelect} style={{ display: 'none' }} />
+        <button className="attach-btn" onClick={() => fileInputRef.current.click()} disabled={loading} title="Upload PDF">
           📎
         </button>
         <input
+          className="text-input"
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder="Type a message or paste a complaint..."
           disabled={loading}
-          style={{ flex: 1, padding: '10px', border: '1px solid #ddd', borderRadius: '8px' }}
         />
-        <button
-          onClick={handleSend}
-          disabled={loading}
-          style={{ padding: '10px 16px', background: '#6366f1', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer' }}
-        >
+        <button className="send-btn" onClick={handleSend} disabled={loading}>
           Send
         </button>
       </div>
