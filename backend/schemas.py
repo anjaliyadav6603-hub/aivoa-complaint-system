@@ -5,6 +5,7 @@ from datetime import datetime
 class ComplaintBase(BaseModel):
     complaint_source: Optional[str] = None
     customer_name: Optional[str] = None
+    customer_phone: Optional[str] = None
     product_name: Optional[str] = None
     product_strength: Optional[str] = None
     batch_lot_number: Optional[str] = None
@@ -32,6 +33,7 @@ class ComplaintResponse(ComplaintBase):
 class ComplaintUpdate(BaseModel):
     complaint_source: Optional[str] = None
     customer_name: Optional[str] = None
+    customer_phone: Optional[str] = None
     product_name: Optional[str] = None
     product_strength: Optional[str] = None
     batch_lot_number: Optional[str] = None

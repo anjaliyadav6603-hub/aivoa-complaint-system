@@ -8,6 +8,7 @@ class Complaint(Base):
     id = Column(Integer, primary_key=True, index=True)
     complaint_source = Column(Text, nullable=True)
     customer_name = Column(Text, nullable=True)
+    customer_phone = Column(Text, nullable=True, index=True)
     product_name = Column(Text, nullable=True)
     product_strength = Column(Text, nullable=True)
     batch_lot_number = Column(Text, nullable=True)
@@ -44,3 +45,12 @@ class ChatMessage(Base):
     role = Column(Text)  # "user" or "assistant"
     message_text = Column(Text)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+class StatusHistory(Base):
+    __tablename__ = "status_history"
+
+    id = Column(Integer, primary_key=True, index=True)
+    complaint_id = Column(Integer, ForeignKey("complaints.id"))
+    old_status = Column(Text, nullable=True)
+    new_status = Column(Text)
+    changed_at = Column(DateTime(timezone=True), server_default=func.now())
